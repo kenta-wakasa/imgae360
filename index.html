@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#111827">
+    <title>Image360 QR Viewer</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="scannerView" class="view view-active" aria-labelledby="scannerTitle">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Image360</p>
+            <h1 id="scannerTitle">QRコードを読み取る</h1>
+          </div>
+        </div>
+
+        <div class="scanner-frame">
+          <video id="cameraPreview" autoplay muted playsinline></video>
+          <canvas id="qrCanvas" aria-hidden="true"></canvas>
+          <div class="scan-reticle" aria-hidden="true"></div>
+          <p id="scannerMessage" class="status-text">カメラを起動しています...</p>
+        </div>
+
+        <div class="action-row">
+          <button id="startScanButton" class="primary-button" type="button">
+            QR読み取り開始
+          </button>
+          <button id="sampleButton" class="secondary-button" type="button">
+            サンプル画像を表示
+          </button>
+        </div>
+      </section>
+
+      <section id="viewerView" class="view viewer-view" aria-label="360度画像ビューア">
+        <div id="panorama" class="panorama" role="img" aria-label="360度画像"></div>
+
+        <div class="viewer-toolbar">
+          <button id="backToScanButton" class="icon-button" type="button" aria-label="QR読み込み画面へ戻る">
+            <span aria-hidden="true">⌕</span>
+          </button>
+          <div class="viewer-title">
+            <p class="eyebrow">Viewing</p>
+            <h2 id="imageName">01.jpg</h2>
+          </div>
+          <button id="motionButton" class="motion-button" type="button">
+            ジャイロON
+          </button>
+        </div>
+
+        <p id="viewerMessage" class="viewer-message">スマホを動かすか、画面をドラッグして視点を動かせます。</p>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
