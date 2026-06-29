@@ -12,7 +12,12 @@ QRコードに含まれる画像名を読み取り、該当する360度画像を
 
 ## GitHub Pages
 
-静的ファイルだけで動作するため、GitHub Pages の `Deploy from a branch` で `main` ブランチの `/root` を公開できます。
+静的ファイルだけで動作します。
+
+初回だけ GitHub の `Settings > Pages` で `Build and deployment` の Source を `GitHub Actions` に設定してください。
+未設定の状態でワークフローを実行すると、`Get Pages site failed` のエラーになります。
+
+管理権限付きの Personal Access Token を `PAGES_ADMIN_TOKEN` というリポジトリシークレットに登録すると、ワークフロー側で Pages の初回有効化も試みます。
 
 GitHub Pages のURL例:
 
@@ -33,4 +38,3 @@ QRコードには画像ファイル名を入れてください。
 ```text
 01.jpg
 ```
-
