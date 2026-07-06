@@ -10,7 +10,12 @@ const sampleButton = document.querySelector("#sampleButton");
 const sampleVideoButton = document.querySelector("#sampleVideoButton");
 const backToScanButton = document.querySelector("#backToScanButton");
 const motionButton = document.querySelector("#motionButton");
-const videoToggleButton = document.querySelector("#videoToggleButton");
+const videoControls = document.querySelector("#videoControls");
+const videoPlayButton = document.querySelector("#videoPlayButton");
+const videoSeekBar = document.querySelector("#videoSeekBar");
+const videoCurrentTime = document.querySelector("#videoCurrentTime");
+const videoDuration = document.querySelector("#videoDuration");
+const videoMuteButton = document.querySelector("#videoMuteButton");
 const viewerMessage = document.querySelector("#viewerMessage");
 const imageName = document.querySelector("#imageName");
 const panorama = document.querySelector("#panorama");
@@ -41,7 +46,9 @@ sampleButton.addEventListener("click", () => openMedia(DEFAULT_MEDIA));
 sampleVideoButton.addEventListener("click", () => openMedia(DEFAULT_VIDEO));
 backToScanButton.addEventListener("click", showScanner);
 motionButton.addEventListener("click", enableMotion);
-videoToggleButton.addEventListener("click", toggleVideoPlayback);
+videoPlayButton.addEventListener("click", toggleVideoPlayback);
+videoMuteButton.addEventListener("click", toggleVideoMute);
+videoSeekBar.addEventListener("input", seekActiveVideo);
 window.addEventListener("resize", resizeRenderer);
 window.addEventListener("orientationchange", resizeRenderer);
 
@@ -218,7 +225,7 @@ async function loadPanorama(mediaUrl, mediaType) {
     sphere.material.color.set(0xffffff);
     sphere.material.map = texture;
     sphere.material.needsUpdate = true;
-    videoToggleButton.classList.toggle("hidden", mediaType !== "video");
+    setVideoControlsVisible(mediaType === "video");
     viewerMessage.textContent =
       mediaType === "video"
         ? "動画を再生しながら、スマホを動かすか画面をドラッグして視点を動かせます。"
@@ -227,7 +234,7 @@ async function loadPanorama(mediaUrl, mediaType) {
     sphere.material.map = null;
     sphere.material.color.set(0x1f2937);
     sphere.material.needsUpdate = true;
-    videoToggleButton.classList.add("hidden");
+    setVideoControlsVisible(false);
     viewerMessage.textContent = "メディアを読み込めませんでした。QRコードのファイル名を確認してください。";
   }
 }
@@ -250,6 +257,7 @@ async function createVideoTexture(videoUrl) {
   video.src = videoUrl;
 
   activeVideo = video;
+  bindVideoEvents(video);
   await waitForVideoReady(video);
 
   const texture = new THREE.VideoTexture(video);
@@ -294,9 +302,9 @@ async function playActiveVideo() {
 
   try {
     await activeVideo.play();
-    updateVideoButton();
+    updateVideoControls();
   } catch (error) {
-    videoToggleButton.textContent = "再生";
+    updateVideoControls();
     viewerMessage.textContent = "動画の再生には画面上の再生ボタンを押してください。";
   }
 }
@@ -310,17 +318,76 @@ async function toggleVideoPlayback() {
     await playActiveVideo();
   } else {
     activeVideo.pause();
-    updateVideoButton();
+    updateVideoControls();
     viewerMessage.textContent = "動画を一時停止しました。";
   }
 }
 
-function updateVideoButton() {
+function toggleVideoMute() {
   if (!activeVideo) {
-    videoToggleButton.textContent = "再生";
     return;
   }
-  videoToggleButton.textContent = activeVideo.paused ? "再生" : "一時停止";
+  activeVideo.muted = !activeVideo.muted;
+  updateVideoControls();
+}
+
+function seekActiveVideo() {
+  if (!activeVideo || !Number.isFinite(activeVideo.duration) || activeVideo.duration <= 0) {
+    return;
+  }
+  activeVideo.currentTime = (Number(videoSeekBar.value) / Number(videoSeekBar.max)) * activeVideo.duration;
+  updateVideoControls();
+}
+
+function bindVideoEvents(video) {
+  video.addEventListener("play", updateVideoControls);
+  video.addEventListener("pause", updateVideoControls);
+  video.addEventListener("timeupdate", updateVideoControls);
+  video.addEventListener("loadedmetadata", updateVideoControls);
+  video.addEventListener("durationchange", updateVideoControls);
+  video.addEventListener("volumechange", updateVideoControls);
+}
+
+function updateVideoControls() {
+  if (!activeVideo) {
+    videoPlayButton.setAttribute("aria-label", "再生");
+    videoPlayButton.querySelector("span").textContent = "▶";
+    videoMuteButton.setAttribute("aria-label", "ミュート解除");
+    videoMuteButton.querySelector("span").textContent = "🔇";
+    videoSeekBar.value = "0";
+    videoCurrentTime.textContent = "0:00";
+    videoDuration.textContent = "0:00";
+    return;
+  }
+
+  const isPaused = activeVideo.paused;
+  videoPlayButton.setAttribute("aria-label", isPaused ? "再生" : "一時停止");
+  videoPlayButton.querySelector("span").textContent = isPaused ? "▶" : "Ⅱ";
+
+  const isMuted = activeVideo.muted || activeVideo.volume === 0;
+  videoMuteButton.setAttribute("aria-label", isMuted ? "ミュート解除" : "ミュート");
+  videoMuteButton.querySelector("span").textContent = isMuted ? "🔇" : "🔊";
+
+  const duration = Number.isFinite(activeVideo.duration) ? activeVideo.duration : 0;
+  const currentTime = Number.isFinite(activeVideo.currentTime) ? activeVideo.currentTime : 0;
+  videoCurrentTime.textContent = formatTime(currentTime);
+  videoDuration.textContent = formatTime(duration);
+  videoSeekBar.value = duration > 0 ? String(Math.round((currentTime / duration) * Number(videoSeekBar.max))) : "0";
+}
+
+function formatTime(seconds) {
+  const safeSeconds = Math.max(0, Math.floor(seconds || 0));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+function setVideoControlsVisible(isVisible) {
+  videoControls.classList.toggle("hidden", !isVisible);
+  viewerView.classList.toggle("video-active", isVisible);
+  if (!isVisible) {
+    updateVideoControls();
+  }
 }
 
 function clearActiveMedia() {
@@ -339,8 +406,7 @@ function stopActiveVideo() {
   activeVideo.removeAttribute("src");
   activeVideo.load();
   activeVideo = null;
-  videoToggleButton.classList.add("hidden");
-  updateVideoButton();
+  setVideoControlsVisible(false);
 }
 
 async function enableMotion() {

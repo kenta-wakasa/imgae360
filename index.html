@@ -51,8 +51,21 @@
           <button id="motionButton" class="motion-button" type="button">
             ジャイロON
           </button>
-          <button id="videoToggleButton" class="motion-button hidden" type="button">
-            再生
+        </div>
+
+        <div id="videoControls" class="video-controls hidden" aria-label="動画操作">
+          <button id="videoPlayButton" class="video-control-button" type="button" aria-label="再生">
+            <span aria-hidden="true">▶</span>
+          </button>
+          <div class="video-timeline">
+            <input id="videoSeekBar" class="video-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="再生位置">
+            <div class="video-time">
+              <span id="videoCurrentTime">0:00</span>
+              <span id="videoDuration">0:00</span>
+            </div>
+          </div>
+          <button id="videoMuteButton" class="video-control-button" type="button" aria-label="ミュート解除">
+            <span aria-hidden="true">🔇</span>
           </button>
         </div>
 
