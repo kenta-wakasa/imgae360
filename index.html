@@ -31,11 +31,14 @@
           <button id="sampleButton" class="secondary-button" type="button">
             サンプル画像を表示
           </button>
+          <button id="sampleVideoButton" class="secondary-button" type="button">
+            サンプル動画を表示
+          </button>
         </div>
       </section>
 
-      <section id="viewerView" class="view viewer-view" aria-label="360度画像ビューア">
-        <div id="panorama" class="panorama" role="img" aria-label="360度画像"></div>
+      <section id="viewerView" class="view viewer-view" aria-label="360度メディアビューア">
+        <div id="panorama" class="panorama" role="img" aria-label="360度メディア"></div>
 
         <div class="viewer-toolbar">
           <button id="backToScanButton" class="icon-button" type="button" aria-label="QR読み込み画面へ戻る">
@@ -47,6 +50,9 @@
           </div>
           <button id="motionButton" class="motion-button" type="button">
             ジャイロON
+          </button>
+          <button id="videoToggleButton" class="motion-button hidden" type="button">
+            再生
           </button>
         </div>
 
