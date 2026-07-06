@@ -31,8 +31,6 @@ https://kenta-wakasa.github.io/imgae360/?image=01.jpg
 初回だけ GitHub の `Settings > Pages` で `Build and deployment` の Source を `GitHub Actions` に設定してください。
 未設定の状態でワークフローを実行すると、`Get Pages site failed` のエラーになります。
 
-管理権限付きの Personal Access Token を `PAGES_ADMIN_TOKEN` というリポジトリシークレットに登録すると、ワークフロー側で Pages の初回有効化も試みます。
-
 GitHub Pages のURL例:
 
 ```text
