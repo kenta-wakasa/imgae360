@@ -37,7 +37,12 @@ motionButton.addEventListener("click", enableMotion);
 window.addEventListener("resize", resizeRenderer);
 window.addEventListener("orientationchange", resizeRenderer);
 
-startScanner();
+const initialImageName = getImageNameFromCurrentUrl();
+if (initialImageName) {
+  openImage(initialImageName);
+} else {
+  startScanner();
+}
 
 async function startScanner() {
   showView(scannerView);
@@ -83,13 +88,44 @@ function scanQrCode() {
   });
 
   if (result?.data) {
-    const fileName = normalizeImageName(result.data);
+    const fileName = resolveImageName(result.data);
     scannerMessage.textContent = `${fileName} を読み込みます...`;
     openImage(fileName);
     return;
   }
 
   scanFrameId = requestAnimationFrame(scanQrCode);
+}
+
+function getImageNameFromCurrentUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const value = params.get("image") || params.get("img") || params.get("file");
+  if (value) {
+    return normalizeImageName(value);
+  }
+
+  const hashValue = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+  if (hashValue) {
+    return normalizeImageName(hashValue);
+  }
+
+  return "";
+}
+
+function resolveImageName(value) {
+  const text = value.trim();
+  try {
+    const url = new URL(text, window.location.href);
+    const paramValue =
+      url.searchParams.get("image") || url.searchParams.get("img") || url.searchParams.get("file");
+    if (paramValue) {
+      return normalizeImageName(paramValue);
+    }
+  } catch (error) {
+    // Fall back to treating the QR value as a plain image name.
+  }
+
+  return normalizeImageName(text);
 }
 
 function normalizeImageName(value) {

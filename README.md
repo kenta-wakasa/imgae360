@@ -10,6 +10,20 @@ QRコードに含まれる画像名を読み取り、該当する360度画像を
 4. 360度画面では `ジャイロON` を押すと、スマホ本体の動きで視点を操作できます。
 5. 左上のボタンでQR読み取り画面に戻れます。
 
+## 直接360度画像を表示するURL
+
+URLに画像名を指定すると、QR読み取り画面を経由せずに360度画像を表示できます。
+
+```text
+https://kenta-wakasa.github.io/imgae360/?image=01
+```
+
+または
+
+```text
+https://kenta-wakasa.github.io/imgae360/?image=01.jpg
+```
+
 ## GitHub Pages
 
 静的ファイルだけで動作します。
