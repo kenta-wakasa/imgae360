@@ -52,9 +52,9 @@ videoSeekBar.addEventListener("input", seekActiveVideo);
 window.addEventListener("resize", resizeRenderer);
 window.addEventListener("orientationchange", resizeRenderer);
 
-const initialMediaName = getMediaNameFromCurrentUrl();
-if (initialMediaName) {
-  openMedia(initialMediaName);
+const initialMedia = getMediaFromCurrentUrl();
+if (initialMedia) {
+  openMedia(initialMedia);
 } else {
   startScanner();
 }
@@ -103,36 +103,36 @@ function scanQrCode() {
   });
 
   if (result?.data) {
-    const fileName = resolveMediaName(result.data);
-    scannerMessage.textContent = `${fileName} を読み込みます...`;
-    openMedia(fileName);
+    const media = resolveMedia(result.data);
+    scannerMessage.textContent = `${getMediaLabel(media.source)} を読み込みます...`;
+    openMedia(media);
     return;
   }
 
   scanFrameId = requestAnimationFrame(scanQrCode);
 }
 
-function getMediaNameFromCurrentUrl() {
+function getMediaFromCurrentUrl() {
   const params = new URLSearchParams(window.location.search);
   const videoValue = params.get("video");
   if (videoValue) {
-    return normalizeMediaName(videoValue, "mp4");
+    return createMediaDescriptor(videoValue, "mp4", "video");
   }
 
   const value = params.get("media") || params.get("image") || params.get("img") || params.get("file");
   if (value) {
-    return normalizeMediaName(value, "jpg");
+    return createMediaDescriptor(value, "jpg", normalizeMediaType(params.get("type")));
   }
 
   const hashValue = decodeURIComponent(window.location.hash.replace(/^#/, ""));
   if (hashValue) {
-    return normalizeMediaName(hashValue, "jpg");
+    return createMediaDescriptor(hashValue, "jpg", "");
   }
 
-  return "";
+  return null;
 }
 
-function resolveMediaName(value) {
+function resolveMedia(value) {
   const text = value.trim();
   try {
     const url = new URL(text, window.location.href);
@@ -143,25 +143,84 @@ function resolveMediaName(value) {
       url.searchParams.get("img") ||
       url.searchParams.get("file");
     if (paramValue) {
-      return normalizeMediaName(paramValue, url.searchParams.has("video") ? "mp4" : "jpg");
+      return createMediaDescriptor(
+        paramValue,
+        url.searchParams.has("video") ? "mp4" : "jpg",
+        url.searchParams.has("video") ? "video" : normalizeMediaType(url.searchParams.get("type"))
+      );
+    }
+
+    if (/^https?:$/i.test(url.protocol)) {
+      return createMediaDescriptor(text, "jpg", normalizeMediaType(url.searchParams.get("type")));
     }
   } catch (error) {
     // Fall back to treating the QR value as a plain media name.
   }
 
-  return normalizeMediaName(text, "jpg");
+  return createMediaDescriptor(text, "jpg", "");
 }
 
-function normalizeMediaName(value, defaultExtension) {
-  const cleanValue = value.trim().split(/[?#]/)[0].split("/").pop() || DEFAULT_MEDIA;
+function createMediaDescriptor(value, defaultExtension, typeHint) {
+  const source = normalizeMediaSource(value, defaultExtension);
+  return {
+    source,
+    type: typeHint || getMediaType(source)
+  };
+}
+
+function normalizeMediaSource(value, defaultExtension) {
+  const trimmedValue = value.trim();
+  if (isExternalUrl(trimmedValue)) {
+    return trimmedValue;
+  }
+
+  const cleanValue = trimmedValue.split(/[?#]/)[0].split("/").pop() || DEFAULT_MEDIA;
   if (/\.(jpg|jpeg|png|webp|mp4|webm|mov)$/i.test(cleanValue)) {
     return cleanValue;
   }
   return `${cleanValue}.${defaultExtension}`;
 }
 
-function getMediaType(fileName) {
-  return /\.(mp4|webm|mov)$/i.test(fileName) ? "video" : "image";
+function getMediaType(mediaSource) {
+  const path = getMediaPath(mediaSource);
+  return /\.(mp4|webm|mov)$/i.test(path) ? "video" : "image";
+}
+
+function normalizeMediaType(type) {
+  return /^(image|video)$/i.test(type || "") ? type.toLowerCase() : "";
+}
+
+function isExternalUrl(value) {
+  try {
+    const url = new URL(value);
+    return /^https?:$/i.test(url.protocol);
+  } catch (error) {
+    return false;
+  }
+}
+
+function getMediaPath(mediaSource) {
+  try {
+    return new URL(mediaSource).pathname;
+  } catch (error) {
+    return mediaSource;
+  }
+}
+
+function getMediaUrl(mediaSource) {
+  if (isExternalUrl(mediaSource)) {
+    return mediaSource;
+  }
+  return `${MEDIA_BASE_PATH}${encodeURIComponent(mediaSource)}`;
+}
+
+function getMediaLabel(mediaSource) {
+  try {
+    const url = new URL(mediaSource);
+    return decodeURIComponent(url.pathname.split("/").pop() || url.hostname);
+  } catch (error) {
+    return mediaSource;
+  }
 }
 
 function stopScanner() {
@@ -181,15 +240,16 @@ function showScanner() {
   startScanner();
 }
 
-async function openMedia(fileName) {
+async function openMedia(mediaInput) {
+  const media = typeof mediaInput === "string" ? createMediaDescriptor(mediaInput, "jpg", "") : mediaInput;
   stopScanner();
   showView(viewerView);
-  imageName.textContent = fileName;
-  activeMediaType = getMediaType(fileName);
+  imageName.textContent = getMediaLabel(media.source);
+  activeMediaType = media.type;
   viewerMessage.textContent = `360度${activeMediaType === "video" ? "動画" : "画像"}を読み込んでいます...`;
 
   initViewer();
-  await loadPanorama(`${MEDIA_BASE_PATH}${encodeURIComponent(fileName)}`, activeMediaType);
+  await loadPanorama(getMediaUrl(media.source), activeMediaType);
   resizeRenderer();
   startViewerLoop();
 }
@@ -235,7 +295,7 @@ async function loadPanorama(mediaUrl, mediaType) {
     sphere.material.color.set(0x1f2937);
     sphere.material.needsUpdate = true;
     setVideoControlsVisible(false);
-    viewerMessage.textContent = "メディアを読み込めませんでした。QRコードのファイル名を確認してください。";
+    viewerMessage.textContent = "メディアを読み込めませんでした。URL、ファイル形式、CORS設定を確認してください。";
   }
 }
 

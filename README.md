@@ -36,6 +36,22 @@ https://kenta-wakasa.github.io/imgae360/?video=sample
 https://kenta-wakasa.github.io/imgae360/?media=sample.mp4
 ```
 
+外部ストレージのURLを指定する場合:
+
+```text
+https://kenta-wakasa.github.io/imgae360/?media=https%3A%2F%2Fexample.com%2Fsample.mp4&type=video
+```
+
+画像の場合:
+
+```text
+https://kenta-wakasa.github.io/imgae360/?media=https%3A%2F%2Fexample.com%2Fpanorama.jpg&type=image
+```
+
+外部URLは `https://` で配信され、ブラウザから読み込めるCORS設定が必要です。
+動画URLの末尾に `.mp4` / `.webm` / `.mov` が付いている場合は自動で動画判定します。
+署名付きURLなどで拡張子がURLパスに出ない場合は `type=video` を付けてください。
+
 ## GitHub Pages
 
 静的ファイルだけで動作します。
@@ -68,3 +84,6 @@ QRコードには画像ファイル名または動画ファイル名を入れて
 ```text
 sample.mp4
 ```
+
+外部ストレージURLをQRコードに直接入れることもできます。
+拡張子から動画/画像を判定できないURLの場合は、このアプリのURL形式で `type=video` または `type=image` を付けてQRコード化してください。
