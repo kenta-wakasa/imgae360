@@ -19,6 +19,7 @@ const videoMuteButton = document.querySelector("#videoMuteButton");
 const viewerMessage = document.querySelector("#viewerMessage");
 const imageName = document.querySelector("#imageName");
 const panorama = document.querySelector("#panorama");
+const youtubeFrame = document.querySelector("#youtubeFrame");
 
 const MEDIA_BASE_PATH = "./";
 const DEFAULT_MEDIA = "01.jpg";
@@ -114,6 +115,11 @@ function scanQrCode() {
 
 function getMediaFromCurrentUrl() {
   const params = new URLSearchParams(window.location.search);
+  const youtubeValue = params.get("youtube") || params.get("yt");
+  if (youtubeValue) {
+    return createMediaDescriptor(youtubeValue, "", "youtube");
+  }
+
   const videoValue = params.get("video");
   if (videoValue) {
     return createMediaDescriptor(videoValue, "mp4", "video");
@@ -134,19 +140,30 @@ function getMediaFromCurrentUrl() {
 
 function resolveMedia(value) {
   const text = value.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(text)) {
+    return createMediaDescriptor(text, "", "youtube");
+  }
+
   try {
     const url = new URL(text, window.location.href);
+    if (isYouTubeUrl(url)) {
+      return createMediaDescriptor(text, "", "youtube");
+    }
+
     const paramValue =
+      url.searchParams.get("youtube") ||
+      url.searchParams.get("yt") ||
       url.searchParams.get("media") ||
       url.searchParams.get("video") ||
       url.searchParams.get("image") ||
       url.searchParams.get("img") ||
       url.searchParams.get("file");
     if (paramValue) {
+      const hasYouTubeParam = url.searchParams.has("youtube") || url.searchParams.has("yt");
       return createMediaDescriptor(
         paramValue,
         url.searchParams.has("video") ? "mp4" : "jpg",
-        url.searchParams.has("video") ? "video" : normalizeMediaType(url.searchParams.get("type"))
+        hasYouTubeParam ? "youtube" : url.searchParams.has("video") ? "video" : normalizeMediaType(url.searchParams.get("type"))
       );
     }
 
@@ -161,6 +178,14 @@ function resolveMedia(value) {
 }
 
 function createMediaDescriptor(value, defaultExtension, typeHint) {
+  if (typeHint === "youtube") {
+    const videoId = getYouTubeVideoId(value);
+    return {
+      source: videoId || value.trim(),
+      type: "youtube"
+    };
+  }
+
   const source = normalizeMediaSource(value, defaultExtension);
   return {
     source,
@@ -182,12 +207,16 @@ function normalizeMediaSource(value, defaultExtension) {
 }
 
 function getMediaType(mediaSource) {
+  if (getYouTubeVideoId(mediaSource)) {
+    return "youtube";
+  }
+
   const path = getMediaPath(mediaSource);
   return /\.(mp4|webm|mov)$/i.test(path) ? "video" : "image";
 }
 
 function normalizeMediaType(type) {
-  return /^(image|video)$/i.test(type || "") ? type.toLowerCase() : "";
+  return /^(image|video|youtube)$/i.test(type || "") ? type.toLowerCase() : "";
 }
 
 function isExternalUrl(value) {
@@ -215,12 +244,52 @@ function getMediaUrl(mediaSource) {
 }
 
 function getMediaLabel(mediaSource) {
+  if (getYouTubeVideoId(mediaSource) || /^[a-zA-Z0-9_-]{11}$/.test(mediaSource)) {
+    return `YouTube: ${getYouTubeVideoId(mediaSource) || mediaSource}`;
+  }
+
   try {
     const url = new URL(mediaSource);
     return decodeURIComponent(url.pathname.split("/").pop() || url.hostname);
   } catch (error) {
     return mediaSource;
   }
+}
+
+function getYouTubeVideoId(value) {
+  const text = value.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(text)) {
+    return text;
+  }
+
+  try {
+    const url = new URL(text);
+    if (!isYouTubeUrl(url)) {
+      return "";
+    }
+
+    const hostname = url.hostname.replace(/^www\./i, "").toLowerCase();
+    if (hostname === "youtu.be") {
+      return url.pathname.split("/").filter(Boolean)[0] || "";
+    }
+
+    if (url.pathname.startsWith("/shorts/") || url.pathname.startsWith("/live/")) {
+      return url.pathname.split("/").filter(Boolean)[1] || "";
+    }
+
+    if (url.pathname.startsWith("/embed/")) {
+      return url.pathname.split("/").filter(Boolean)[1] || "";
+    }
+
+    return url.searchParams.get("v") || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function isYouTubeUrl(url) {
+  const hostname = url.hostname.replace(/^www\./i, "").toLowerCase();
+  return hostname === "youtube.com" || hostname === "m.youtube.com" || hostname === "youtu.be";
 }
 
 function stopScanner() {
@@ -246,12 +315,36 @@ async function openMedia(mediaInput) {
   showView(viewerView);
   imageName.textContent = getMediaLabel(media.source);
   activeMediaType = media.type;
-  viewerMessage.textContent = `360度${activeMediaType === "video" ? "動画" : "画像"}を読み込んでいます...`;
+  viewerMessage.textContent = `360度${activeMediaType === "image" ? "画像" : "動画"}を読み込んでいます...`;
+
+  if (activeMediaType === "youtube") {
+    showYouTubePlayer(media.source);
+    return;
+  }
 
   initViewer();
   await loadPanorama(getMediaUrl(media.source), activeMediaType);
   resizeRenderer();
   startViewerLoop();
+}
+
+function showYouTubePlayer(videoId) {
+  clearActiveMedia();
+  stopViewerLoop();
+  setVideoControlsVisible(false);
+  panorama.classList.add("hidden");
+  youtubeFrame.classList.remove("hidden");
+  youtubeFrame.innerHTML = "";
+
+  const iframe = document.createElement("iframe");
+  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+  iframe.allowFullscreen = true;
+  iframe.referrerPolicy = "strict-origin-when-cross-origin";
+  iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?playsinline=1&rel=0&modestbranding=1`;
+  iframe.title = "YouTube 360度動画プレイヤー";
+  youtubeFrame.appendChild(iframe);
+
+  viewerMessage.textContent = "YouTubeプレイヤー上で360度動画を再生できます。視点操作と再生操作はYouTube側のUIを使います。";
 }
 
 function initViewer() {
@@ -278,6 +371,9 @@ function initViewer() {
 
 async function loadPanorama(mediaUrl, mediaType) {
   clearActiveMedia();
+  youtubeFrame.classList.add("hidden");
+  youtubeFrame.innerHTML = "";
+  panorama.classList.remove("hidden");
 
   try {
     const texture = mediaType === "video" ? await createVideoTexture(mediaUrl) : await createImageTexture(mediaUrl);
@@ -451,6 +547,9 @@ function setVideoControlsVisible(isVisible) {
 }
 
 function clearActiveMedia() {
+  youtubeFrame.classList.add("hidden");
+  youtubeFrame.innerHTML = "";
+  panorama.classList.remove("hidden");
   stopActiveVideo();
   if (activeTexture) {
     activeTexture.dispose();

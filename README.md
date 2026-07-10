@@ -52,6 +52,15 @@ https://kenta-wakasa.github.io/imgae360/?media=https%3A%2F%2Fexample.com%2Fpanor
 動画URLの末尾に `.mp4` / `.webm` / `.mov` が付いている場合は自動で動画判定します。
 署名付きURLなどで拡張子がURLパスに出ない場合は `type=video` を付けてください。
 
+YouTubeにアップロードした360度動画を表示する場合:
+
+```text
+https://kenta-wakasa.github.io/imgae360/?youtube=VIDEO_ID
+```
+
+YouTube動画はMP4として直接読み込まず、YouTubeの埋め込みプレイヤーで表示します。
+QRコードには上記URL、YouTubeの共有URL、または11文字のYouTube動画IDを入れられます。
+
 ## GitHub Pages
 
 静的ファイルだけで動作します。
@@ -87,3 +96,4 @@ sample.mp4
 
 外部ストレージURLをQRコードに直接入れることもできます。
 拡張子から動画/画像を判定できないURLの場合は、このアプリのURL形式で `type=video` または `type=image` を付けてQRコード化してください。
+YouTube動画の場合は、YouTube共有URLまたは `https://kenta-wakasa.github.io/imgae360/?youtube=VIDEO_ID` をQRコード化してください。
