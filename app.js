@@ -332,19 +332,28 @@ function showYouTubePlayer(videoId) {
   clearActiveMedia();
   stopViewerLoop();
   setVideoControlsVisible(false);
+  viewerView.classList.add("youtube-active");
   panorama.classList.add("hidden");
   youtubeFrame.classList.remove("hidden");
   youtubeFrame.innerHTML = "";
 
   const iframe = document.createElement("iframe");
-  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share";
   iframe.allowFullscreen = true;
   iframe.referrerPolicy = "strict-origin-when-cross-origin";
-  iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?playsinline=1&rel=0&modestbranding=1`;
+  const params = new URLSearchParams({
+    playsinline: "1",
+    controls: "1",
+    enablejsapi: "1",
+    rel: "0",
+    modestbranding: "1",
+    origin: window.location.origin
+  });
+  iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
   iframe.title = "YouTube 360度動画プレイヤー";
   youtubeFrame.appendChild(iframe);
 
-  viewerMessage.textContent = "YouTubeプレイヤー上で360度動画を再生できます。視点操作と再生操作はYouTube側のUIを使います。";
+  viewerMessage.textContent = "YouTubeプレイヤー内をドラッグして視点を動かせます。スマホでは全画面表示にするとジャイロ操作しやすくなります。";
 }
 
 function initViewer() {
@@ -547,6 +556,7 @@ function setVideoControlsVisible(isVisible) {
 }
 
 function clearActiveMedia() {
+  viewerView.classList.remove("youtube-active");
   youtubeFrame.classList.add("hidden");
   youtubeFrame.innerHTML = "";
   panorama.classList.remove("hidden");

@@ -219,6 +219,7 @@ h2 {
 .youtube-frame {
   position: fixed;
   inset: 0;
+  z-index: 2;
   background: #000;
 }
 
@@ -226,6 +227,7 @@ h2 {
   width: 100%;
   height: 100%;
   border: 0;
+  touch-action: auto;
 }
 
 .viewer-toolbar {
@@ -293,6 +295,22 @@ h2 {
   line-height: 1.45;
   text-align: center;
   backdrop-filter: blur(18px);
+}
+
+.viewer-view.youtube-active .viewer-toolbar {
+  pointer-events: none;
+}
+
+.viewer-view.youtube-active .icon-button {
+  pointer-events: auto;
+}
+
+.viewer-view.youtube-active .motion-button {
+  display: none;
+}
+
+.viewer-view.youtube-active .viewer-message {
+  display: none;
 }
 
 .video-controls {
