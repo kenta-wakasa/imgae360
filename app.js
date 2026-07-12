@@ -20,6 +20,9 @@ const viewerMessage = document.querySelector("#viewerMessage");
 const imageName = document.querySelector("#imageName");
 const panorama = document.querySelector("#panorama");
 const youtubeFrame = document.querySelector("#youtubeFrame");
+const youtubeActions = document.querySelector("#youtubeActions");
+const youtubeFullscreenButton = document.querySelector("#youtubeFullscreenButton");
+const youtubeOpenLink = document.querySelector("#youtubeOpenLink");
 
 const MEDIA_BASE_PATH = "./";
 const DEFAULT_MEDIA = "01.jpg";
@@ -50,6 +53,7 @@ motionButton.addEventListener("click", enableMotion);
 videoPlayButton.addEventListener("click", toggleVideoPlayback);
 videoMuteButton.addEventListener("click", toggleVideoMute);
 videoSeekBar.addEventListener("input", seekActiveVideo);
+youtubeFullscreenButton.addEventListener("click", openYouTubeFullscreen);
 window.addEventListener("resize", resizeRenderer);
 window.addEventListener("orientationchange", resizeRenderer);
 
@@ -335,16 +339,21 @@ function showYouTubePlayer(videoId) {
   viewerView.classList.add("youtube-active");
   panorama.classList.add("hidden");
   youtubeFrame.classList.remove("hidden");
+  youtubeActions.classList.remove("hidden");
+  youtubeOpenLink.href = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
   youtubeFrame.innerHTML = "";
 
   const iframe = document.createElement("iframe");
   iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share";
   iframe.allowFullscreen = true;
+  iframe.setAttribute("allowfullscreen", "");
+  iframe.setAttribute("webkitallowfullscreen", "");
   iframe.referrerPolicy = "strict-origin-when-cross-origin";
   const params = new URLSearchParams({
     playsinline: "1",
     controls: "1",
     enablejsapi: "1",
+    fs: "1",
     rel: "0",
     modestbranding: "1",
     origin: window.location.origin
@@ -354,6 +363,22 @@ function showYouTubePlayer(videoId) {
   youtubeFrame.appendChild(iframe);
 
   viewerMessage.textContent = "YouTubeプレイヤー内をドラッグして視点を動かせます。スマホでは全画面表示にするとジャイロ操作しやすくなります。";
+}
+
+async function openYouTubeFullscreen() {
+  const target = youtubeFrame;
+  try {
+    if (target.requestFullscreen) {
+      await target.requestFullscreen();
+      return;
+    }
+    if (target.webkitRequestFullscreen) {
+      target.webkitRequestFullscreen();
+      return;
+    }
+  } catch (error) {
+    viewerMessage.textContent = "このブラウザではアプリ内全画面に切り替えられません。YouTubeで開くボタンを使ってください。";
+  }
 }
 
 function initViewer() {
@@ -559,6 +584,8 @@ function clearActiveMedia() {
   viewerView.classList.remove("youtube-active");
   youtubeFrame.classList.add("hidden");
   youtubeFrame.innerHTML = "";
+  youtubeActions.classList.add("hidden");
+  youtubeOpenLink.href = "#";
   panorama.classList.remove("hidden");
   stopActiveVideo();
   if (activeTexture) {

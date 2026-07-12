@@ -60,6 +60,8 @@ https://kenta-wakasa.github.io/imgae360/?youtube=VIDEO_ID
 
 YouTube動画はMP4として直接読み込まず、YouTubeの埋め込みプレイヤーで表示します。
 QRコードには上記URL、YouTubeの共有URL、または11文字のYouTube動画IDを入れられます。
+モバイルブラウザではYouTube埋め込みプレイヤーの全画面やジャイロ操作が制限される場合があります。
+その場合は画面下部の `YouTubeで開く` からYouTubeアプリまたはYouTubeページで再生してください。
 
 ## GitHub Pages
 
