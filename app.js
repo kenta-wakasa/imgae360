@@ -44,6 +44,15 @@ let latestOrientation = null;
 let activeTexture = null;
 let activeVideo = null;
 let activeMediaType = "image";
+let youtubeApiPromise = null;
+let youtubePlayer = null;
+let youtubePlayerReady = false;
+let youtubeIs360 = null;
+let youtubeView = { yaw: 0, pitch: 0, fov: 100 };
+let youtubeDragLayer = null;
+let youtubePointers = new Map();
+let youtubeDrag = null;
+let youtubePinch = null;
 
 startScanButton.addEventListener("click", startScanner);
 sampleButton.addEventListener("click", () => openMedia(DEFAULT_MEDIA));
@@ -332,7 +341,7 @@ async function openMedia(mediaInput) {
   startViewerLoop();
 }
 
-function showYouTubePlayer(videoId) {
+async function showYouTubePlayer(videoId) {
   clearActiveMedia();
   stopViewerLoop();
   setVideoControlsVisible(false);
@@ -343,26 +352,216 @@ function showYouTubePlayer(videoId) {
   youtubeOpenLink.href = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
   youtubeFrame.innerHTML = "";
 
-  const iframe = document.createElement("iframe");
-  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share";
-  iframe.allowFullscreen = true;
-  iframe.setAttribute("allowfullscreen", "");
-  iframe.setAttribute("webkitallowfullscreen", "");
-  iframe.referrerPolicy = "strict-origin-when-cross-origin";
-  const params = new URLSearchParams({
-    playsinline: "1",
-    controls: "1",
-    enablejsapi: "1",
-    fs: "1",
-    rel: "0",
-    modestbranding: "1",
-    origin: window.location.origin
-  });
-  iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
-  iframe.title = "YouTube 360度動画プレイヤー";
-  youtubeFrame.appendChild(iframe);
+  const mount = document.createElement("div");
+  mount.className = "youtube-player-mount";
+  youtubeFrame.appendChild(mount);
 
-  viewerMessage.textContent = "YouTubeプレイヤー内をドラッグして視点を動かせます。スマホでは全画面表示にするとジャイロ操作しやすくなります。";
+  youtubeDragLayer = document.createElement("div");
+  youtubeDragLayer.className = "youtube-drag-layer";
+  bindYouTubeDragEvents(youtubeDragLayer);
+  youtubeFrame.appendChild(youtubeDragLayer);
+
+  youtubeView = { yaw: 0, pitch: 0, fov: 100 };
+  youtubeIs360 = null;
+
+  viewerMessage.textContent = "画面をドラッグして視点を動かせます。タップで再生/一時停止できます。";
+
+  try {
+    const YT = await loadYouTubeApi();
+    if (!youtubeFrame.contains(mount)) {
+      return;
+    }
+    youtubePlayer = new YT.Player(mount, {
+      videoId,
+      playerVars: {
+        playsinline: 1,
+        controls: 1,
+        fs: 1,
+        rel: 0,
+        origin: window.location.origin
+      },
+      events: {
+        onReady: handleYouTubeReady,
+        onStateChange: handleYouTubeStateChange
+      }
+    });
+  } catch (error) {
+    viewerMessage.textContent = "YouTubeプレイヤーを読み込めませんでした。通信環境を確認してください。";
+  }
+}
+
+function loadYouTubeApi() {
+  if (window.YT?.Player) {
+    return Promise.resolve(window.YT);
+  }
+
+  if (!youtubeApiPromise) {
+    youtubeApiPromise = new Promise((resolve, reject) => {
+      const previousCallback = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        previousCallback?.();
+        resolve(window.YT);
+      };
+
+      const script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
+      script.onerror = () => {
+        youtubeApiPromise = null;
+        reject(new Error("Failed to load YouTube IFrame API"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  return youtubeApiPromise;
+}
+
+function handleYouTubeReady() {
+  youtubePlayerReady = true;
+  applyYouTubeView();
+  detectYouTube360();
+}
+
+function handleYouTubeStateChange(event) {
+  if (event.data === window.YT.PlayerState.PLAYING) {
+    detectYouTube360();
+  }
+}
+
+function detectYouTube360() {
+  if (!youtubePlayerReady || typeof youtubePlayer?.getSphericalProperties !== "function") {
+    return;
+  }
+
+  const properties = youtubePlayer.getSphericalProperties() || {};
+  if (typeof properties.yaw === "number") {
+    youtubeIs360 = true;
+    youtubeView = {
+      yaw: properties.yaw,
+      pitch: properties.pitch ?? 0,
+      fov: properties.fov || 100
+    };
+    youtubeDragLayer?.classList.remove("hidden");
+    return;
+  }
+
+  if (youtubeIs360 === null && youtubePlayer.getPlayerState?.() === window.YT.PlayerState.PLAYING) {
+    youtubeIs360 = false;
+    youtubeDragLayer?.classList.add("hidden");
+    viewerMessage.textContent =
+      "この動画では360度の視点操作を利用できません(360度動画でないか、この環境が未対応です)。「YouTubeで開く」もお試しください。";
+  }
+}
+
+function applyYouTubeView() {
+  if (!youtubePlayerReady || typeof youtubePlayer?.setSphericalProperties !== "function") {
+    return;
+  }
+
+  youtubePlayer.setSphericalProperties({
+    yaw: ((youtubeView.yaw % 360) + 360) % 360,
+    pitch: THREE.MathUtils.clamp(youtubeView.pitch, -90, 90),
+    roll: 0,
+    fov: THREE.MathUtils.clamp(youtubeView.fov, 30, 120),
+    enableOrientationSensor: true
+  });
+}
+
+function bindYouTubeDragEvents(layer) {
+  layer.addEventListener("pointerdown", handleYouTubePointerDown);
+  layer.addEventListener("pointermove", handleYouTubePointerMove);
+  layer.addEventListener("pointerup", handleYouTubePointerUp);
+  layer.addEventListener("pointercancel", handleYouTubePointerUp);
+  layer.addEventListener("wheel", handleYouTubeWheel, { passive: false });
+}
+
+function handleYouTubePointerDown(event) {
+  youtubeDragLayer.setPointerCapture(event.pointerId);
+  youtubePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+  if (youtubePointers.size === 1) {
+    youtubeDrag = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      yaw: youtubeView.yaw,
+      pitch: youtubeView.pitch,
+      moved: false
+    };
+    youtubePinch = null;
+  } else if (youtubePointers.size === 2) {
+    const [first, second] = [...youtubePointers.values()];
+    youtubePinch = {
+      distance: Math.hypot(first.x - second.x, first.y - second.y),
+      fov: youtubeView.fov
+    };
+    youtubeDrag = null;
+  }
+}
+
+function handleYouTubePointerMove(event) {
+  if (!youtubePointers.has(event.pointerId)) {
+    return;
+  }
+  youtubePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+  if (youtubePinch && youtubePointers.size >= 2) {
+    const [first, second] = [...youtubePointers.values()];
+    const distance = Math.hypot(first.x - second.x, first.y - second.y);
+    if (distance > 0 && youtubePinch.distance > 0) {
+      youtubeView.fov = THREE.MathUtils.clamp(youtubePinch.fov * (youtubePinch.distance / distance), 30, 120);
+      applyYouTubeView();
+    }
+    return;
+  }
+
+  if (!youtubeDrag || youtubeDrag.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const deltaX = event.clientX - youtubeDrag.x;
+  const deltaY = event.clientY - youtubeDrag.y;
+  if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
+    youtubeDrag.moved = true;
+  }
+
+  const degreesPerPixel = youtubeView.fov / Math.max(youtubeDragLayer.clientHeight, 1);
+  youtubeView.yaw = youtubeDrag.yaw - deltaX * degreesPerPixel;
+  youtubeView.pitch = THREE.MathUtils.clamp(youtubeDrag.pitch + deltaY * degreesPerPixel, -90, 90);
+  applyYouTubeView();
+}
+
+function handleYouTubePointerUp(event) {
+  const wasDrag = youtubeDrag && youtubeDrag.pointerId === event.pointerId;
+  const tapped = wasDrag && !youtubeDrag.moved && event.type === "pointerup";
+  youtubePointers.delete(event.pointerId);
+  if (wasDrag) {
+    youtubeDrag = null;
+  }
+  if (youtubePointers.size < 2) {
+    youtubePinch = null;
+  }
+  if (tapped) {
+    toggleYouTubePlayback();
+  }
+}
+
+function handleYouTubeWheel(event) {
+  event.preventDefault();
+  youtubeView.fov = THREE.MathUtils.clamp(youtubeView.fov + event.deltaY * 0.05, 30, 120);
+  applyYouTubeView();
+}
+
+function toggleYouTubePlayback() {
+  if (!youtubePlayerReady || typeof youtubePlayer?.getPlayerState !== "function") {
+    return;
+  }
+
+  if (youtubePlayer.getPlayerState() === window.YT.PlayerState.PLAYING) {
+    youtubePlayer.pauseVideo();
+  } else {
+    youtubePlayer.playVideo();
+  }
 }
 
 async function openYouTubeFullscreen() {
@@ -582,6 +781,20 @@ function setVideoControlsVisible(isVisible) {
 
 function clearActiveMedia() {
   viewerView.classList.remove("youtube-active");
+  if (youtubePlayer) {
+    try {
+      youtubePlayer.destroy();
+    } catch (error) {
+      // The player may already be gone; clearing the frame below is enough.
+    }
+    youtubePlayer = null;
+  }
+  youtubePlayerReady = false;
+  youtubeIs360 = null;
+  youtubeDragLayer = null;
+  youtubePointers.clear();
+  youtubeDrag = null;
+  youtubePinch = null;
   youtubeFrame.classList.add("hidden");
   youtubeFrame.innerHTML = "";
   youtubeActions.classList.add("hidden");
