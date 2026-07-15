@@ -11,13 +11,35 @@
   </head>
   <body>
     <main class="app-shell">
-      <section id="listView" class="view admin-view view-active" aria-labelledby="listTitle">
+      <section id="authView" class="view admin-view view-active" aria-labelledby="authTitle">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Image360 Admin</p>
+            <h1 id="authTitle">ログイン</h1>
+          </div>
+        </div>
+
+        <form id="loginForm" class="admin-card">
+          <h2 class="admin-heading">管理者ログイン</h2>
+          <p class="admin-note">アップロード・編集・削除には管理者アカウントでのログインが必要です。</p>
+          <label class="field-label" for="loginEmail">メールアドレス</label>
+          <input id="loginEmail" class="text-input" type="email" required autocomplete="username" placeholder="admin@example.com">
+          <label class="field-label" for="loginPassword">パスワード</label>
+          <input id="loginPassword" class="text-input" type="password" required autocomplete="current-password">
+          <button id="loginButton" class="primary-button" type="submit">ログイン</button>
+          <p id="loginMessage" class="admin-message"></p>
+        </form>
+      </section>
+
+      <section id="listView" class="view admin-view" aria-labelledby="listTitle">
         <div class="topbar">
           <div>
             <p class="eyebrow">Image360 Admin</p>
             <h1 id="listTitle">360度メディア管理</h1>
           </div>
+          <button id="logoutButton" class="secondary-button small-button" type="button">ログアウト</button>
         </div>
+        <p id="signedInAs" class="admin-message signed-in-as"></p>
 
         <form id="uploadForm" class="admin-card">
           <h2 class="admin-heading">新規アップロード</h2>

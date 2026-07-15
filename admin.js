@@ -1,6 +1,12 @@
 import QRCode from "https://esm.run/qrcode@1.5.3";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
   getStorage,
   ref,
   listAll,
@@ -22,6 +28,14 @@ const firebaseConfig = {
 
 const MEDIA_FOLDER = "image360";
 
+const authView = document.querySelector("#authView");
+const loginForm = document.querySelector("#loginForm");
+const loginEmail = document.querySelector("#loginEmail");
+const loginPassword = document.querySelector("#loginPassword");
+const loginButton = document.querySelector("#loginButton");
+const loginMessage = document.querySelector("#loginMessage");
+const logoutButton = document.querySelector("#logoutButton");
+const signedInAs = document.querySelector("#signedInAs");
 const listView = document.querySelector("#listView");
 const detailView = document.querySelector("#detailView");
 const uploadForm = document.querySelector("#uploadForm");
@@ -49,10 +63,14 @@ const deleteButton = document.querySelector("#deleteButton");
 const detailMessage = document.querySelector("#detailMessage");
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const storage = getStorage(app);
 
 let activeItem = null;
+let listLoaded = false;
 
+loginForm.addEventListener("submit", handleLogin);
+logoutButton.addEventListener("click", () => signOut(auth));
 uploadForm.addEventListener("submit", handleUpload);
 reloadButton.addEventListener("click", () => loadMediaList());
 backToListButton.addEventListener("click", showListView);
@@ -61,7 +79,66 @@ copyUrlButton.addEventListener("click", copyViewerUrl);
 downloadQrButton.addEventListener("click", downloadQrImage);
 deleteButton.addEventListener("click", handleDelete);
 
-loadMediaList();
+onAuthStateChanged(auth, handleAuthStateChanged);
+
+function handleAuthStateChanged(user) {
+  if (user) {
+    authView.classList.remove("view-active");
+    listView.classList.add("view-active");
+    signedInAs.textContent = `${user.email} でログイン中`;
+    loginForm.reset();
+    loginMessage.textContent = "";
+    if (!listLoaded) {
+      listLoaded = true;
+      loadMediaList();
+    }
+  } else {
+    listLoaded = false;
+    activeItem = null;
+    detailView.classList.remove("view-active");
+    listView.classList.remove("view-active");
+    authView.classList.add("view-active");
+    mediaList.innerHTML = "";
+  }
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const email = loginEmail.value.trim();
+  const password = loginPassword.value;
+  if (!email || !password) {
+    return;
+  }
+
+  loginButton.disabled = true;
+  loginMessage.textContent = "ログインしています...";
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged で画面遷移するため、ここでは何もしない。
+  } catch (error) {
+    loginMessage.textContent = describeAuthError(error);
+  } finally {
+    loginButton.disabled = false;
+  }
+}
+
+function describeAuthError(error) {
+  switch (error?.code) {
+    case "auth/invalid-email":
+      return "メールアドレスの形式が正しくありません。";
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      return "メールアドレスまたはパスワードが正しくありません。";
+    case "auth/too-many-requests":
+      return "試行回数が多すぎます。しばらくしてから再試行してください。";
+    case "auth/operation-not-allowed":
+      return "メール/パスワードのログインが Firebase で有効化されていません。";
+    default:
+      return `ログインできませんでした: ${error?.message || error}`;
+  }
+}
 
 async function loadMediaList() {
   listMessage.textContent = "読み込んでいます...";

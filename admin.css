@@ -79,6 +79,16 @@
   line-height: 1.5;
 }
 
+.signed-in-as {
+  margin: 0 0 14px;
+  color: var(--accent);
+}
+
+#loginForm .primary-button {
+  width: 100%;
+  margin-top: 14px;
+}
+
 .admin-note {
   margin: 0 0 12px;
   color: var(--muted);
