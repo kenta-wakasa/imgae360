@@ -1,14 +1,6 @@
 import * as THREE from "three";
 
-const scannerView = document.querySelector("#scannerView");
 const viewerView = document.querySelector("#viewerView");
-const cameraPreview = document.querySelector("#cameraPreview");
-const qrCanvas = document.querySelector("#qrCanvas");
-const scannerMessage = document.querySelector("#scannerMessage");
-const startScanButton = document.querySelector("#startScanButton");
-const sampleButton = document.querySelector("#sampleButton");
-const sampleVideoButton = document.querySelector("#sampleVideoButton");
-const backToScanButton = document.querySelector("#backToScanButton");
 const motionButton = document.querySelector("#motionButton");
 const videoControls = document.querySelector("#videoControls");
 const videoPlayButton = document.querySelector("#videoPlayButton");
@@ -17,7 +9,6 @@ const videoCurrentTime = document.querySelector("#videoCurrentTime");
 const videoDuration = document.querySelector("#videoDuration");
 const videoMuteButton = document.querySelector("#videoMuteButton");
 const viewerMessage = document.querySelector("#viewerMessage");
-const imageName = document.querySelector("#imageName");
 const panorama = document.querySelector("#panorama");
 const youtubeFrame = document.querySelector("#youtubeFrame");
 const youtubeActions = document.querySelector("#youtubeActions");
@@ -26,11 +17,7 @@ const youtubeOpenLink = document.querySelector("#youtubeOpenLink");
 
 const MEDIA_BASE_PATH = "./";
 const DEFAULT_MEDIA = "01.jpg";
-const DEFAULT_VIDEO = "sample.mp4";
-const qrContext = qrCanvas.getContext("2d", { willReadFrequently: true });
 
-let scanStream = null;
-let scanFrameId = 0;
 let renderer;
 let scene;
 let camera;
@@ -45,10 +32,6 @@ let activeTexture = null;
 let activeVideo = null;
 let activeMediaType = "image";
 
-startScanButton.addEventListener("click", startScanner);
-sampleButton.addEventListener("click", () => openMedia(DEFAULT_MEDIA));
-sampleVideoButton.addEventListener("click", () => openMedia(DEFAULT_VIDEO));
-backToScanButton.addEventListener("click", showScanner);
 motionButton.addEventListener("click", enableMotion);
 videoPlayButton.addEventListener("click", toggleVideoPlayback);
 videoMuteButton.addEventListener("click", toggleVideoMute);
@@ -61,60 +44,7 @@ const initialMedia = getMediaFromCurrentUrl();
 if (initialMedia) {
   openMedia(initialMedia);
 } else {
-  startScanner();
-}
-
-async function startScanner() {
-  showView(scannerView);
-  stopScanner();
-  scannerMessage.textContent = "カメラへのアクセスを確認しています...";
-
-  if (!navigator.mediaDevices?.getUserMedia) {
-    scannerMessage.textContent = "このブラウザではカメラ読み取りに対応していません。";
-    return;
-  }
-
-  try {
-    scanStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      },
-      audio: false
-    });
-    cameraPreview.srcObject = scanStream;
-    await cameraPreview.play();
-    scannerMessage.textContent = "QRコードを枠内に合わせてください。";
-    scanFrameId = requestAnimationFrame(scanQrCode);
-  } catch (error) {
-    scannerMessage.textContent = "カメラを起動できませんでした。権限を確認してください。";
-  }
-}
-
-function scanQrCode() {
-  if (!scanStream || cameraPreview.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
-    scanFrameId = requestAnimationFrame(scanQrCode);
-    return;
-  }
-
-  qrCanvas.width = cameraPreview.videoWidth;
-  qrCanvas.height = cameraPreview.videoHeight;
-  qrContext.drawImage(cameraPreview, 0, 0, qrCanvas.width, qrCanvas.height);
-
-  const frame = qrContext.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
-  const result = window.jsQR?.(frame.data, frame.width, frame.height, {
-    inversionAttempts: "dontInvert"
-  });
-
-  if (result?.data) {
-    const media = resolveMedia(result.data);
-    scannerMessage.textContent = `${getMediaLabel(media.source)} を読み込みます...`;
-    openMedia(media);
-    return;
-  }
-
-  scanFrameId = requestAnimationFrame(scanQrCode);
+  viewerMessage.textContent = "QRコードから360度メディアを開いてください。";
 }
 
 function getMediaFromCurrentUrl() {
@@ -140,45 +70,6 @@ function getMediaFromCurrentUrl() {
   }
 
   return null;
-}
-
-function resolveMedia(value) {
-  const text = value.trim();
-  if (/^[a-zA-Z0-9_-]{11}$/.test(text)) {
-    return createMediaDescriptor(text, "", "youtube");
-  }
-
-  try {
-    const url = new URL(text, window.location.href);
-    if (isYouTubeUrl(url)) {
-      return createMediaDescriptor(text, "", "youtube");
-    }
-
-    const paramValue =
-      url.searchParams.get("youtube") ||
-      url.searchParams.get("yt") ||
-      url.searchParams.get("media") ||
-      url.searchParams.get("video") ||
-      url.searchParams.get("image") ||
-      url.searchParams.get("img") ||
-      url.searchParams.get("file");
-    if (paramValue) {
-      const hasYouTubeParam = url.searchParams.has("youtube") || url.searchParams.has("yt");
-      return createMediaDescriptor(
-        paramValue,
-        url.searchParams.has("video") ? "mp4" : "jpg",
-        hasYouTubeParam ? "youtube" : url.searchParams.has("video") ? "video" : normalizeMediaType(url.searchParams.get("type"))
-      );
-    }
-
-    if (/^https?:$/i.test(url.protocol)) {
-      return createMediaDescriptor(text, "jpg", normalizeMediaType(url.searchParams.get("type")));
-    }
-  } catch (error) {
-    // Fall back to treating the QR value as a plain media name.
-  }
-
-  return createMediaDescriptor(text, "jpg", "");
 }
 
 function createMediaDescriptor(value, defaultExtension, typeHint) {
@@ -247,19 +138,6 @@ function getMediaUrl(mediaSource) {
   return `${MEDIA_BASE_PATH}${encodeURIComponent(mediaSource)}`;
 }
 
-function getMediaLabel(mediaSource) {
-  if (getYouTubeVideoId(mediaSource) || /^[a-zA-Z0-9_-]{11}$/.test(mediaSource)) {
-    return `YouTube: ${getYouTubeVideoId(mediaSource) || mediaSource}`;
-  }
-
-  try {
-    const url = new URL(mediaSource);
-    return decodeURIComponent(url.pathname.split("/").pop() || url.hostname);
-  } catch (error) {
-    return mediaSource;
-  }
-}
-
 function getYouTubeVideoId(value) {
   const text = value.trim();
   if (/^[a-zA-Z0-9_-]{11}$/.test(text)) {
@@ -296,28 +174,8 @@ function isYouTubeUrl(url) {
   return hostname === "youtube.com" || hostname === "m.youtube.com" || hostname === "youtu.be";
 }
 
-function stopScanner() {
-  cancelAnimationFrame(scanFrameId);
-  scanFrameId = 0;
-  if (scanStream) {
-    scanStream.getTracks().forEach((track) => track.stop());
-    scanStream = null;
-  }
-  cameraPreview.srcObject = null;
-}
-
-function showScanner() {
-  stopViewerLoop();
-  stopActiveVideo();
-  showView(scannerView);
-  startScanner();
-}
-
 async function openMedia(mediaInput) {
   const media = typeof mediaInput === "string" ? createMediaDescriptor(mediaInput, "jpg", "") : mediaInput;
-  stopScanner();
-  showView(viewerView);
-  imageName.textContent = getMediaLabel(media.source);
   activeMediaType = media.type;
   viewerMessage.textContent = `360度${activeMediaType === "image" ? "画像" : "動画"}を読み込んでいます...`;
 
@@ -719,9 +577,4 @@ function resizeRenderer() {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   renderer.setSize(width, height, false);
-}
-
-function showView(activeView) {
-  scannerView.classList.toggle("view-active", activeView === scannerView);
-  viewerView.classList.toggle("view-active", activeView === viewerView);
 }
