@@ -18,12 +18,18 @@ const youtubeOpenLink = document.querySelector("#youtubeOpenLink");
 const MEDIA_BASE_PATH = "./";
 const DEFAULT_MEDIA = "01.jpg";
 
+const VIEWER_FOV_DEFAULT = 75;
+const VIEWER_FOV_MIN = 30;
+const VIEWER_FOV_MAX = 100;
+
 let renderer;
 let scene;
 let camera;
 let sphere;
 let animationFrameId = 0;
 let dragState = null;
+let viewerPointers = new Map();
+let viewerPinch = null;
 let yaw = 0;
 let pitch = 0;
 let motionEnabled = false;
@@ -444,7 +450,7 @@ function initViewer() {
   }
 
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
+  camera = new THREE.PerspectiveCamera(VIEWER_FOV_DEFAULT, window.innerWidth / window.innerHeight, 1, 1100);
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   panorama.appendChild(renderer.domElement);
@@ -456,8 +462,9 @@ function initViewer() {
 
   renderer.domElement.addEventListener("pointerdown", handlePointerDown);
   renderer.domElement.addEventListener("pointermove", handlePointerMove);
-  renderer.domElement.addEventListener("pointerup", clearDragState);
-  renderer.domElement.addEventListener("pointercancel", clearDragState);
+  renderer.domElement.addEventListener("pointerup", handlePointerUp);
+  renderer.domElement.addEventListener("pointercancel", handlePointerUp);
+  renderer.domElement.addEventListener("wheel", handleViewerWheel, { passive: false });
 }
 
 async function loadPanorama(mediaUrl, mediaType) {
@@ -756,29 +763,87 @@ function applyDeviceOrientation({ alpha, beta, gamma, orient }) {
 }
 
 function handlePointerDown(event) {
-  dragState = {
-    pointerId: event.pointerId,
-    x: event.clientX,
-    y: event.clientY,
-    yaw,
-    pitch
-  };
   renderer.domElement.setPointerCapture(event.pointerId);
+  viewerPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+  if (viewerPointers.size === 1) {
+    dragState = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      yaw,
+      pitch
+    };
+    viewerPinch = null;
+  } else if (viewerPointers.size === 2) {
+    const [first, second] = [...viewerPointers.values()];
+    viewerPinch = {
+      distance: Math.hypot(first.x - second.x, first.y - second.y),
+      fov: camera.fov
+    };
+    dragState = null;
+  }
 }
 
 function handlePointerMove(event) {
+  if (!viewerPointers.has(event.pointerId)) {
+    return;
+  }
+  viewerPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+  if (viewerPinch && viewerPointers.size >= 2) {
+    const [first, second] = [...viewerPointers.values()];
+    const distance = Math.hypot(first.x - second.x, first.y - second.y);
+    if (distance > 0 && viewerPinch.distance > 0) {
+      setViewerFov(viewerPinch.fov * (viewerPinch.distance / distance));
+    }
+    return;
+  }
+
   if (!dragState || dragState.pointerId !== event.pointerId) {
     return;
   }
 
   const deltaX = event.clientX - dragState.x;
   const deltaY = event.clientY - dragState.y;
-  yaw = dragState.yaw - deltaX * 0.005;
-  pitch = THREE.MathUtils.clamp(dragState.pitch - deltaY * 0.005, -1.35, 1.35);
+  const rotationPerPixel = 0.005 * (camera.fov / VIEWER_FOV_DEFAULT);
+  yaw = dragState.yaw - deltaX * rotationPerPixel;
+  pitch = THREE.MathUtils.clamp(dragState.pitch - deltaY * rotationPerPixel, -1.35, 1.35);
 }
 
-function clearDragState() {
-  dragState = null;
+function handlePointerUp(event) {
+  viewerPointers.delete(event.pointerId);
+
+  if (viewerPointers.size < 2) {
+    viewerPinch = null;
+  }
+
+  if (viewerPointers.size === 1) {
+    const [pointerId] = viewerPointers.keys();
+    const remaining = viewerPointers.get(pointerId);
+    dragState = {
+      pointerId,
+      x: remaining.x,
+      y: remaining.y,
+      yaw,
+      pitch
+    };
+  } else if (dragState && dragState.pointerId === event.pointerId) {
+    dragState = null;
+  }
+}
+
+function handleViewerWheel(event) {
+  if (!camera) {
+    return;
+  }
+  event.preventDefault();
+  setViewerFov(camera.fov + event.deltaY * 0.05);
+}
+
+function setViewerFov(fov) {
+  camera.fov = THREE.MathUtils.clamp(fov, VIEWER_FOV_MIN, VIEWER_FOV_MAX);
+  camera.updateProjectionMatrix();
 }
 
 function resizeRenderer() {
